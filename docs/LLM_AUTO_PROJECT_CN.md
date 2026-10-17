@@ -25,7 +25,8 @@ cp llm.example.json llm.json
   "max_tokens": 65536,
   "temperature": 0.2,
   "timeout": 600,
-  "retries": 2
+  "retries": 2,
+  "user_agent": "CairnQ/0.2.1"
 }
 ```
 
@@ -39,6 +40,7 @@ cp llm.example.json llm.json
 - `timeout`: 请求超时时间，单位秒（默认：600）
 - `retries`: 临时失败的重试次数（默认：2）
 - `proxy`: 可选的 HTTP/HTTPS 代理 URL
+- `user_agent`: 可选的 User-Agent 请求头，所有 LLM 请求都会携带
 - `extra_headers`: 可选的额外 HTTP 头，JSON 对象格式
 
 ### 2. 创建任务描述文件

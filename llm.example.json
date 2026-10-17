@@ -6,5 +6,6 @@
   "max_tokens": 65536,
   "temperature": 0.2,
   "timeout": 600,
-  "retries": 2
+  "retries": 2,
+  "user_agent": "CairnQ/0.2.1"
 }

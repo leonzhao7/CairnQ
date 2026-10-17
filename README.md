@@ -237,6 +237,7 @@ The LLM config supports:
 - `timeout`: Request timeout in seconds (default: 600)
 - `retries`: Number of retries for transient failures (default: 2)
 - `proxy`: Optional HTTP/HTTPS proxy URL
+- `user_agent`: Optional User-Agent header for all LLM requests
 - `extra_headers`: Optional additional HTTP headers as a JSON object
 
 ### Tests

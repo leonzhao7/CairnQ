@@ -179,3 +179,31 @@ def test_create_startup_project_uses_defaults_for_missing_optional_fields(tmp_pa
 
         hints = conn.execute("SELECT * FROM hints WHERE project_id = ?", (result,)).fetchall()
         assert len(hints) == 0
+
+
+def test_llm_config_user_agent_is_sent_in_headers(tmp_path):
+    from unittest.mock import MagicMock, patch
+    from cairn.server.llm import LLMConfig, chat
+
+    config = LLMConfig(
+        url="http://test",
+        api_key="key",
+        model="model",
+        user_agent="TestAgent/1.0"
+    )
+
+    with patch("cairn.server.llm.requests.post") as mock_post:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "test response"}}]
+        }
+        mock_post.return_value = mock_response
+
+        chat(config, [{"role": "user", "content": "test"}])
+
+        # Verify User-Agent was included in headers
+        call_args = mock_post.call_args
+        headers = call_args[1]["headers"]
+        assert "User-Agent" in headers
+        assert headers["User-Agent"] == "TestAgent/1.0"

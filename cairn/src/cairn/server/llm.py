@@ -31,6 +31,7 @@ class LLMConfig(BaseModel):
     timeout: int = Field(default=600, gt=0)
     retries: int = Field(default=2, ge=0)
     proxy: str | None = None
+    user_agent: str | None = None
     extra_headers: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("endpoint")
@@ -76,6 +77,8 @@ def chat(config: LLMConfig, messages: list[dict[str, str]]) -> str:
         "content-type": "application/json",
         **config.extra_headers,
     }
+    if config.user_agent:
+        headers["User-Agent"] = config.user_agent
     payload: dict[str, Any] = {
         "model": config.model,
         "messages": messages,
