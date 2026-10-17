@@ -18,7 +18,7 @@ uv run --project cairn cairn serve --port 9999 &
 
 # 启动 dispatch（后台运行）
 echo "Starting dispatch..."
-uv run --project cairn cairn dispatch --config dispatch.local.pi.yaml &
+uv run --project cairn cairn dispatch --config dispatch.yaml &
 
 # 等待后台进程
 wait

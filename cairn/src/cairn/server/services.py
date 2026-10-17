@@ -5,7 +5,15 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException
 
-from cairn.server.models import Intent, ProjectMeta, ProjectReason
+from cairn.server.models import (
+    CreateProjectRequest,
+    Fact,
+    Hint,
+    Intent,
+    ProjectDetail,
+    ProjectMeta,
+    ProjectReason,
+)
 
 def utcnow() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -46,6 +54,55 @@ def next_intent_id(conn: sqlite3.Connection, project_id: str) -> str:
 
 def next_hint_id(conn: sqlite3.Connection, project_id: str) -> str:
     return _next_scoped_id(conn, "hint", "h", project_id)
+
+
+def insert_project(conn: sqlite3.Connection, body: CreateProjectRequest) -> ProjectDetail:
+    """Write a new project with its origin/goal facts and inline hints.
+
+    Shared by the HTTP route and the startup LLM bootstrap, which runs before the server
+    is listening and so has no HTTP client to call.
+    """
+    pid = next_project_id(conn)
+    now = utcnow()
+
+    conn.execute(
+        "INSERT INTO projects (id, title, status, bootstrap_enabled, created_at) VALUES (?, ?, 'active', ?, ?)",
+        (pid, body.title, body.bootstrap_enabled, now),
+    )
+    conn.execute(
+        "INSERT INTO facts (id, project_id, description) VALUES (?, ?, ?)",
+        ("origin", pid, body.origin),
+    )
+    conn.execute(
+        "INSERT INTO facts (id, project_id, description) VALUES (?, ?, ?)",
+        ("goal", pid, body.goal),
+    )
+
+    hints = []
+    for h in body.hints or []:
+        hid = next_hint_id(conn, pid)
+        conn.execute(
+            "INSERT INTO hints (id, project_id, content, creator, created_at) VALUES (?, ?, ?, ?, ?)",
+            (hid, pid, h.content, h.creator, now),
+        )
+        hints.append(Hint(id=hid, content=h.content, creator=h.creator, created_at=now))
+
+    return ProjectDetail(
+        project=ProjectMeta(
+            id=pid,
+            title=body.title,
+            status="active",
+            bootstrap_enabled=body.bootstrap_enabled,
+            created_at=now,
+            reason=None,
+        ),
+        facts=[
+            Fact(id="origin", description=body.origin),
+            Fact(id="goal", description=body.goal),
+        ],
+        intents=[],
+        hints=hints,
+    )
 
 
 def get_project_or_404(conn: sqlite3.Connection, project_id: str) -> sqlite3.Row:

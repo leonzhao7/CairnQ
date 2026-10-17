@@ -26,11 +26,10 @@ from cairn.server.services import (
     expire_workers,
     get_completion_intent_or_409,
     get_project_or_404,
+    insert_project,
     intent_to_model,
     next_fact_id,
-    next_hint_id,
     next_intent_id,
-    next_project_id,
     project_meta_from_row,
     project_reason_from_row,
     utcnow,
@@ -77,48 +76,7 @@ def list_projects():
 @router.post("/projects", response_model=ProjectDetail, status_code=201)
 def create_project(body: CreateProjectRequest):
     with get_conn() as conn:
-        pid = next_project_id(conn)
-        now = utcnow()
-
-        conn.execute(
-            "INSERT INTO projects (id, title, status, bootstrap_enabled, created_at) VALUES (?, ?, 'active', ?, ?)",
-            (pid, body.title, body.bootstrap_enabled, now),
-        )
-        conn.execute(
-            "INSERT INTO facts (id, project_id, description) VALUES (?, ?, ?)",
-            ("origin", pid, body.origin),
-        )
-        conn.execute(
-            "INSERT INTO facts (id, project_id, description) VALUES (?, ?, ?)",
-            ("goal", pid, body.goal),
-        )
-
-        hints = []
-        if body.hints:
-            for h in body.hints:
-                hid = next_hint_id(conn, pid)
-                conn.execute(
-                    "INSERT INTO hints (id, project_id, content, creator, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (hid, pid, h.content, h.creator, now),
-                )
-                hints.append(Hint(id=hid, content=h.content, creator=h.creator, created_at=now))
-
-        return ProjectDetail(
-            project=ProjectMeta(
-                id=pid,
-                title=body.title,
-                status="active",
-                bootstrap_enabled=body.bootstrap_enabled,
-                created_at=now,
-                reason=None,
-            ),
-            facts=[
-                Fact(id="origin", description=body.origin),
-                Fact(id="goal", description=body.goal),
-            ],
-            intents=[],
-            hints=hints,
-        )
+        return insert_project(conn, body)
 
 
 @router.get("/projects/{project_id}", response_model=ProjectDetail)

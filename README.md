@@ -194,6 +194,51 @@ uv run --project cairn cairn dispatch --config dispatch.yaml
 
 Local mode is selected by `runtime.execution: local` (see `dispatch.local.example.yaml`). On startup the dispatcher checks each configured worker CLI is installed and runnable, and reminds you they must already be logged in. Each project gets an isolated working directory under `local.workspace_root` (default: the dispatcher's current directory). Run the dispatcher directly on the host — not inside Docker — since the agents run with your user's permissions and no sandbox.
 
+### Startup Project Creation (Optional)
+
+The server can automatically create a Cairn project at startup by sending a user-provided task description to an LLM, which extracts the origin, goal, and hints.
+
+1. Create an LLM configuration file `llm.json`:
+
+```bash
+cp llm.example.json llm.json
+# Edit llm.json and fill in your API endpoint, key, and model
+```
+
+2. Write your task description in `start_prompt.md`:
+
+```bash
+cp start_prompt.example.md start_prompt.md
+# Edit start_prompt.md with your actual task
+```
+
+3. Start the server — it will read both files, call the LLM, and create a project before listening:
+
+```bash
+uv run --project cairn cairn serve
+# Created startup project: proj_001
+```
+
+If either file is missing or the LLM call fails, the server skips project creation and continues normally. The feature is entirely opt-in: no config file = no startup project.
+
+You can override the default file paths with CLI flags:
+
+```bash
+uv run --project cairn cairn serve --llm-config my_llm.json --start-prompt my_task.md
+```
+
+The LLM config supports:
+- `url`: Base URL of the API endpoint
+- `api_key`: Your API key
+- `model`: Model name (e.g., `gpt-4`, `claude-sonnet-4`)
+- `endpoint`: API path, must be `/chat/completions` (OpenAI-compatible)
+- `max_tokens`: Maximum tokens in the response (default: 65536)
+- `temperature`: Sampling temperature (default: 0.2)
+- `timeout`: Request timeout in seconds (default: 600)
+- `retries`: Number of retries for transient failures (default: 2)
+- `proxy`: Optional HTTP/HTTPS proxy URL
+- `extra_headers`: Optional additional HTTP headers as a JSON object
+
 ### Tests
 
 Run the fast regression suite without Docker or live model endpoints:

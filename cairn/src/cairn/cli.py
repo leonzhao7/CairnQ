@@ -25,9 +25,39 @@ def main():
 )
 @click.option("--log-level", default="info", show_default=True, help="Uvicorn log level")
 @click.option("--access-log/--no-access-log", default=True, show_default=True, help="Enable Uvicorn access log")
-def serve(host: str, port: int, db_path: str, log_level: str, access_log: bool):
+@click.option(
+    "--llm-config",
+    type=click.Path(exists=False, dir_okay=False, path_type=Path),
+    default=Path("llm.json"),
+    show_default=True,
+    help="LLM config for startup project creation",
+)
+@click.option(
+    "--start-prompt",
+    type=click.Path(exists=False, dir_okay=False, path_type=Path),
+    default=Path("start_prompt.md"),
+    show_default=True,
+    help="Prompt file for startup project creation",
+)
+def serve(
+    host: str,
+    port: int,
+    db_path: str,
+    log_level: str,
+    access_log: bool,
+    llm_config: Path,
+    start_prompt: Path,
+):
     """Start the Cairn API server."""
     db.configure(Path(db_path))
+
+    # Attempt to create a project from start_prompt.md via LLM if both config and prompt exist.
+    # This runs before uvicorn starts, so logging is not yet configured; use click.echo for output.
+    from cairn.server.startup_project import create_startup_project
+    project_id = create_startup_project(llm_config, start_prompt)
+    if project_id:
+        click.echo(f"Created startup project: {project_id}")
+
     from cairn.server.app import app
 
     uvicorn.run(
