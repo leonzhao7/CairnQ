@@ -23,6 +23,35 @@ def test_client_request_failure_returns_status_zero() -> None:
     assert result.text == "offline"
 
 
+def test_client_create_project_posts_to_projects_endpoint() -> None:
+    class Response:
+        status_code = 201
+        headers = {"content-type": "application/json"}
+        text = '{"project": {"id": "proj_001"}}'
+
+        def json(self):
+            return {"project": {"id": "proj_001"}}
+
+    class Session:
+        def __init__(self):
+            self.calls: list[tuple[str, str, dict]] = []
+
+        def request(self, method, url, json, timeout):
+            self.calls.append((method, url, json))
+            return Response()
+
+    client = CairnClient("http://server/")
+    session = Session()
+    client._local.session = session
+    body = {"title": "test", "origin": "start", "goal": "finish"}
+
+    result = client.create_project(body)
+
+    assert result.status_code == 201
+    assert result.data == {"project": {"id": "proj_001"}}
+    assert session.calls == [("POST", "http://server/projects", body)]
+
+
 def test_startup_healthcheck_failure_summary_includes_worker_details() -> None:
     results = [
         StartupHealthcheckResult(

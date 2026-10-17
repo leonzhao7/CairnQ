@@ -2,7 +2,9 @@
 
 ## 概述
 
-Server 现在支持在启动时通过 LLM 自动创建 Cairn 项目。你只需提供任务描述，LLM 会自动提取项目的起点（origin）、目标（goal）和提示（hints）。
+Dispatcher 现在支持在启动时通过 LLM 自动创建 Cairn 项目。你只需提供任务描述，LLM 会自动提取项目的起点（origin）、目标（goal）和提示（hints）。
+
+Server 完全不与 LLM 交互：读取提示词、调用 LLM、解析结果都在 dispatcher 中完成，dispatcher 再通过 Server 的 HTTP API 创建项目。
 
 ## 配置方法
 
@@ -67,27 +69,29 @@ cp start_prompt.example.md start_prompt.md
 - 只针对指定 IP 地址
 ```
 
-### 3. 启动 Server
+### 3. 启动 Dispatcher
 
-使用 `start.sh` 或直接运行：
+先启动 server，再使用 `start.sh` 或直接运行 dispatcher：
 
 ```bash
 uv run --project cairn cairn serve
+# 另一个终端
+uv run --project cairn cairn dispatch --config dispatch.yaml
 ```
 
-如果两个文件都存在，server 会：
+如果两个文件都存在，dispatcher 会在首次成功连接 server 后：
 1. 读取 `start_prompt.md` 中的任务描述
 2. 发送给 LLM 进行结构化提取
-3. 创建一个 Cairn 项目
-4. 输出：`Created startup project: proj_001`
-5. 正常启动并监听
+3. 通过 server 的 HTTP API 创建一个 Cairn 项目
+4. 日志输出：`Created startup project proj_001: <项目标题>`
+5. 继续正常调度
 
 ### 4. 自定义配置文件路径
 
 你可以通过命令行参数指定不同的配置文件：
 
 ```bash
-uv run --project cairn cairn serve \
+uv run --project cairn cairn dispatch --config dispatch.yaml \
   --llm-config my_llm.json \
   --start-prompt my_task.md
 ```
@@ -95,8 +99,8 @@ uv run --project cairn cairn serve \
 ## 特性说明
 
 ### 完全可选
-- 如果不存在 `llm.json` 或 `start_prompt.md`，server 会跳过项目创建，正常启动
-- LLM 调用失败不会阻止 server 启动
+- 如果不存在 `llm.json` 或 `start_prompt.md`，dispatcher 会跳过项目创建，正常启动
+- LLM 调用失败不会阻止 dispatcher 启动
 - 这是一个纯增强功能，不影响现有工作流
 
 ### 自动跳过场景
@@ -107,7 +111,7 @@ uv run --project cairn cairn serve \
 - LLM 调用失败
 - LLM 返回的 JSON 格式错误
 
-所有跳过情况都会记录日志，server 继续正常启动。
+所有跳过情况都会记录日志，dispatcher 继续正常启动。
 
 ### LLM 提取的信息
 

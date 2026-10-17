@@ -196,7 +196,7 @@ Local mode is selected by `runtime.execution: local` (see `dispatch.local.exampl
 
 ### Startup Project Creation (Optional)
 
-The server can automatically create a Cairn project at startup by sending a user-provided task description to an LLM, which extracts the origin, goal, and hints.
+The dispatcher can automatically create a Cairn project at startup by sending a user-provided task description to an LLM, which extracts the origin, goal, and hints. The server itself never talks to an LLM — the dispatcher parses the prompt and creates the project through the server's HTTP API.
 
 1. Create an LLM configuration file `llm.json`:
 
@@ -212,20 +212,24 @@ cp start_prompt.example.md start_prompt.md
 # Edit start_prompt.md with your actual task
 ```
 
-3. Start the server — it will read both files, call the LLM, and create a project before listening:
+3. Start the server, then start the dispatcher — once the server is reachable, the dispatcher reads both files, calls the LLM, and creates the project before scheduling work:
 
 ```bash
 uv run --project cairn cairn serve
+# in another shell
+uv run --project cairn cairn dispatch --config dispatch.yaml
 # Created startup project: proj_001
 ```
 
-If either file is missing or the LLM call fails, the server skips project creation and continues normally. The feature is entirely opt-in: no config file = no startup project.
+If either file is missing or the LLM call fails, the dispatcher skips project creation and continues normally. The feature is entirely opt-in: no config file = no startup project.
 
 You can override the default file paths with CLI flags:
 
 ```bash
-uv run --project cairn cairn serve --llm-config my_llm.json --start-prompt my_task.md
+uv run --project cairn cairn dispatch --config dispatch.yaml --llm-config my_llm.json --start-prompt my_task.md
 ```
+
+When running the dispatcher in Docker, mount both files into the dispatcher container (see the commented volumes in `docker-compose.yaml`) — the server container never needs them.
 
 The LLM config supports:
 - `url`: Base URL of the API endpoint

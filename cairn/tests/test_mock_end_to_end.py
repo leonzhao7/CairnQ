@@ -49,6 +49,9 @@ class InProcessClient:
         response.raise_for_status()
         return response.text
 
+    def create_project(self, body: dict[str, Any]) -> ApiResult:
+        return self._post("/projects", body)
+
     def heartbeat(self, project_id: str, intent_id: str, worker: str) -> ApiResult:
         return self._post(f"/projects/{project_id}/intents/{intent_id}/heartbeat", {"worker": worker})
 

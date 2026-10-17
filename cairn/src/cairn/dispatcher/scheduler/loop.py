@@ -18,6 +18,11 @@ from cairn.dispatcher.runtime.containers import ContainerManager
 from cairn.dispatcher.runtime.local_backend import LocalBackend
 from cairn.dispatcher.runtime.startup_healthcheck import format_failure_summary, run_startup_healthchecks
 from cairn.dispatcher.scheduler.worker_select import choose_worker
+from cairn.dispatcher.startup_project import (
+    DEFAULT_LLM_CONFIG,
+    DEFAULT_START_PROMPT,
+    create_startup_project,
+)
 from cairn.dispatcher.workers.registry import get_driver
 from cairn.dispatcher.tasks.bootstrap import run_bootstrap_task
 from cairn.dispatcher.tasks.explore import run_explore_task
@@ -41,9 +46,19 @@ class WorkerSelection:
 
 
 class DispatcherLoop:
-    def __init__(self, config_path: Path):
+    def __init__(
+        self,
+        config_path: Path,
+        *,
+        llm_config: Path | None = None,
+        start_prompt: Path | None = None,
+    ):
         self.config_path = config_path
         self.config = DispatchConfig.load(config_path)
+        self.llm_config_path = llm_config if llm_config is not None else DEFAULT_LLM_CONFIG
+        self.start_prompt_path = start_prompt if start_prompt is not None else DEFAULT_START_PROMPT
+        self.startup_project_enabled = llm_config is not None or start_prompt is not None
+        self._startup_project_attempted = False
         self.client = CairnClient(self.config.server)
         if self.config.runtime.execution == "local":
             self.container_manager = LocalBackend(self.config.local or LocalConfig())
@@ -88,6 +103,8 @@ class DispatcherLoop:
                     self._reap_futures()
                     self._reap_cleanup_futures()
                     summaries = self.client.list_projects()
+                    if self._maybe_create_startup_project():
+                        summaries = self.client.list_projects()
                     self._initialize_reason_checkpoints(summaries)
                     self._refresh_runtime_projects(summaries)
                     self._cancel_inactive_tasks(summaries)
@@ -108,6 +125,15 @@ class DispatcherLoop:
                 time.sleep(self.config.runtime.interval)
         finally:
             self.close()
+
+    def _maybe_create_startup_project(self) -> str | None:
+        """Let the LLM turn start_prompt.md into a project, once, after the server is reachable."""
+        if self._startup_project_attempted:
+            return None
+        self._startup_project_attempted = True
+        if not self.startup_project_enabled:
+            return None
+        return create_startup_project(self.client, self.llm_config_path, self.start_prompt_path)
 
     def run_startup_healthchecks_only(self) -> None:
         try:

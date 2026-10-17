@@ -59,8 +59,8 @@ def next_hint_id(conn: sqlite3.Connection, project_id: str) -> str:
 def insert_project(conn: sqlite3.Connection, body: CreateProjectRequest) -> ProjectDetail:
     """Write a new project with its origin/goal facts and inline hints.
 
-    Shared by the HTTP route and the startup LLM bootstrap, which runs before the server
-    is listening and so has no HTTP client to call.
+    Called by the HTTP route. The dispatcher's LLM startup bootstrap goes through that route
+    as well; the server never talks to an LLM itself.
     """
     pid = next_project_id(conn)
     now = utcnow()

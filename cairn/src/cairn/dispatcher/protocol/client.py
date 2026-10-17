@@ -72,6 +72,9 @@ class CairnClient:
         response.raise_for_status()
         return response.text
 
+    def create_project(self, body: dict[str, Any]) -> ApiResult:
+        return self._request_json("POST", "/projects", json=body)
+
     def heartbeat(self, project_id: str, intent_id: str, worker: str) -> ApiResult:
         return self._request_json(
             "POST",

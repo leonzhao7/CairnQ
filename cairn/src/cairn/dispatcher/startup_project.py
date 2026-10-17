@@ -1,18 +1,15 @@
 from __future__ import annotations
 
-import json
 import logging
 from importlib import resources
 from pathlib import Path
-from typing import Any
 
 from pydantic import ValidationError
 
-from cairn.server import db
-from cairn.server.llm import LLMConfig, LLMError, chat
+from cairn.dispatcher.llm import LLMConfig, LLMError, chat
+from cairn.dispatcher.output_parser import extract_json_object
+from cairn.dispatcher.protocol.client import CairnClient
 from cairn.server.models import CreateHintInline, CreateProjectRequest
-from cairn.server.output_parser import extract_json_object
-from cairn.server.services import insert_project
 
 DEFAULT_LLM_CONFIG = Path("llm.json")
 DEFAULT_START_PROMPT = Path("start_prompt.md")
@@ -21,18 +18,20 @@ logger = logging.getLogger(__name__)
 
 
 def create_startup_project(
+    client: CairnClient,
     llm_config_path: Path = DEFAULT_LLM_CONFIG,
     start_prompt_path: Path = DEFAULT_START_PROMPT,
 ) -> str | None:
-    """Read start_prompt.md, send it to the LLM, parse the response, and insert a project.
+    """Read start_prompt.md, send it to the LLM, parse the response, and create a project.
 
-    Returns the new project id on success, or None if skipped or failed.
-    Logs rather than raises — this is a best-effort feature that should not block server startup.
+    The project is created through the server's HTTP API; the dispatcher never touches the
+    database directly. Returns the new project id on success, or None if skipped or failed.
+    Logs rather than raises — this is a best-effort feature that should not block dispatcher startup.
     """
-    if not llm_config_path.exists():
+    if not llm_config_path.is_file():
         logger.info("No LLM config found at %s, skipping startup project creation", llm_config_path)
         return None
-    if not start_prompt_path.exists():
+    if not start_prompt_path.is_file():
         logger.info("No start prompt found at %s, skipping startup project creation", start_prompt_path)
         return None
 
@@ -52,7 +51,11 @@ def create_startup_project(
         logger.info("Start prompt is empty, skipping startup project creation")
         return None
 
-    system_prompt = _load_system_prompt()
+    try:
+        system_prompt = _load_system_prompt()
+    except OSError as exc:
+        logger.error("Failed to load startup project system prompt: %s", exc)
+        return None
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},
@@ -72,20 +75,31 @@ def create_startup_project(
         logger.debug("LLM response text: %s", response_text[:500])
         return None
 
-    try:
-        with db.get_conn() as conn:
-            detail = insert_project(conn, project_request)
-    except Exception as exc:
-        logger.error("Failed to insert startup project: %s", exc)
+    result = client.create_project(project_request.model_dump())
+    if not result.ok:
+        logger.error(
+            "Failed to create startup project: HTTP %s %s",
+            result.status_code,
+            result.text[:300],
+        )
         return None
 
-    logger.info("Created startup project %s: %s", detail.project.id, detail.project.title)
-    return detail.project.id
+    project_id = None
+    if isinstance(result.data, dict):
+        project = result.data.get("project")
+        if isinstance(project, dict):
+            project_id = project.get("id")
+    if not isinstance(project_id, str) or not project_id:
+        logger.error("Server response for startup project has no project id: %s", result.text[:300])
+        return None
+
+    logger.info("Created startup project %s: %s", project_id, project_request.title)
+    return project_id
 
 
 def _load_system_prompt() -> str:
     return (
-        resources.files("cairn.server.prompts")
+        resources.files("cairn.dispatcher.prompts")
         .joinpath("startup_project.md")
         .read_text(encoding="utf-8")
     )
