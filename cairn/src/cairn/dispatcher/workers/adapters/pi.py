@@ -108,7 +108,9 @@ class PiDriver(WorkerDriver):
             "--no-themes",
             "--no-context-files",
             "--tools",
-            "read,write,edit,bash,grep,find,ls",
+            # No `ls`: pi's ls tool schema has no `required` field, and agentrouter's
+            # upstream rejects such requests as invalid. grep/find cover directory listing.
+            "read,write,edit,bash,grep,find",
         ]
         if session:
             pi_argv.extend(["--session", session])
@@ -176,7 +178,8 @@ class PiDriver(WorkerDriver):
             "--no-context-files",
         ]
         if enable_tools:
-            argv.extend(["--tools", "read,write,edit,bash,grep,find,ls"])
+            # No `ls` (see _local_argv): its schema lacks `required` and trips agentrouter.
+            argv.extend(["--tools", "read,write,edit,bash,grep,find"])
         return [
             "/bin/sh",
             "-lc",
